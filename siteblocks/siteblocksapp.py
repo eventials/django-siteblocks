@@ -5,6 +5,7 @@ from collections import defaultdict
 from django.core.cache import cache
 from django.core.urlresolvers import resolve, Resolver404
 from django.db.models import signals
+from django.template import Context, Template
 
 from .models import Block
 
@@ -126,7 +127,8 @@ class SiteBlocks(object):
                         url_re = ':%s' % url_re
                 else:
                     url_re = re.compile(r'%s' % block.url)
-                re_index[url_re].append(block.contents)
+                contents = Template(block.contents).render(Context(context))
+                re_index[url_re].append(contents)
 
             siteblocks_static = re_index
             self._cache_set(block_alias, re_index)
