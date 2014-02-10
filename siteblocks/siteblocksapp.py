@@ -139,7 +139,7 @@ class SiteBlocks(object):
             static_block_contents = choice(siteblocks_static[resolved_view_name])
         else:
             for url, contents in siteblocks_static.items():
-                if url.match(current_url):
+                if hasattr(url, 'match') and url.match(current_url):
                     static_block_contents = choice(contents)
                     break
 
