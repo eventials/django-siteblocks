@@ -1,3 +1,4 @@
+import logging
 import re
 from random import choice
 from collections import defaultdict
@@ -127,7 +128,13 @@ class SiteBlocks(object):
                         url_re = ':%s' % url_re
                 else:
                     url_re = re.compile(r'%s' % block.url)
-                contents = Template(block.contents).render(Context(context))
+
+                try:
+                    contents = Template(block.contents).render(Context(context))
+                except:
+                    logging.exception("Error rendering siteblock template.")
+                    contents = ""
+
                 re_index[url_re].append(contents)
 
             siteblocks_static = re_index

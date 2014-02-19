@@ -1,3 +1,4 @@
+import logging
 from random import choice
 
 from django.utils import unittest
@@ -5,10 +6,9 @@ from django import template
 from django.core import urlresolvers
 
 from siteblocks.models import Block
-from siteblocks.siteblocksapp import SiteBlocks, SiteBlocksError, register_dynamic_block
+from siteblocks.siteblocksapp import SiteBlocks, register_dynamic_block
 
 from django.conf.urls import patterns, url, include
-
 
 class MockRequest(object):
     def __init__(self, path, user_authorized):
@@ -86,6 +86,12 @@ class TreeItemModelTest(unittest.TestCase):
         cls.b8 = Block(alias='named_2', url=':namespaced:url', contents='named_2_1')
         cls.b8.save(force_insert=True)
 
+        cls.b9 = Block(alias='template', url='/template', contents='{{ something|default:"other" }}')
+        cls.b9.save(force_insert=True)
+
+        cls.b10 = Block(alias='template_error', url='/template-error', contents='{% ifz %}')
+        cls.b10.save(force_insert=True)
+
         # set urlconf to one from test
         cls.old_urlconf = urlresolvers.get_urlconf()
         urlresolvers.set_urlconf('siteblocks.tests')
@@ -127,6 +133,17 @@ class TreeItemModelTest(unittest.TestCase):
         self.assertEqual(contents, self.b6.contents)
 
         contents = self.siteblocks.get(self.b5.alias, get_mock_context(path='/groooves'))
+        self.assertEqual(contents, '')
+
+    def test_static_template(self):
+
+        contents = self.siteblocks.get(self.b9.alias, get_mock_context(path='/template'))
+        self.assertEqual(contents, 'other')
+
+    def test_static_template_error(self):
+
+        logging.disable(logging.ERROR)
+        contents = self.siteblocks.get(self.b10.alias, get_mock_context(path='/template-error'))
         self.assertEqual(contents, '')
 
     def test_static_namedview(self):
