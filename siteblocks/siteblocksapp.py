@@ -138,7 +138,7 @@ class SiteBlocks(object):
                 re_index[url_re].append(contents)
 
             siteblocks_static = re_index
-            self._cache_set(block_alias, re_index)
+            self._cache_set(current_url, re_index)
         self._cache_save()
 
         static_block_contents = ''
