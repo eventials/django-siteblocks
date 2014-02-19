@@ -114,7 +114,7 @@ class SiteBlocks(object):
 
         self._cache_init()
 
-        siteblocks_static = self._cache_get(block_alias)
+        siteblocks_static = self._cache_get(current_url)
         if not siteblocks_static:
             blocks = Block.objects.filter(alias=block_alias, hidden=False).only('url', 'contents')
             re_index = defaultdict(list)
