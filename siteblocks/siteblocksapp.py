@@ -113,8 +113,9 @@ class SiteBlocks(object):
             resolved_view_name = None
 
         self._cache_init()
+        key = block_alias + current_url
 
-        siteblocks_static = self._cache_get(current_url)
+        siteblocks_static = self._cache_get(key)
         if not siteblocks_static:
             blocks = Block.objects.filter(alias=block_alias, hidden=False).only('url', 'contents')
             re_index = defaultdict(list)
@@ -138,7 +139,7 @@ class SiteBlocks(object):
                 re_index[url_re].append(contents)
 
             siteblocks_static = re_index
-            self._cache_set(current_url, re_index)
+            self._cache_set(key, re_index)
         self._cache_save()
 
         static_block_contents = ''
