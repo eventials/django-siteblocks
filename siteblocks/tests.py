@@ -111,7 +111,7 @@ class TreeItemModelTest(unittest.TestCase):
         self.assertEqual(contents, self.b1.contents)
 
         contents = self.siteblocks.get(self.b3.alias, get_mock_context(path='/root/'))
-        self.assertIn(contents, [self.b3.contents, self.b4.contents])
+        self.assertEqual(contents, self.b4.contents)
 
     def test_static_multiple(self):
 

@@ -12,10 +12,10 @@ class Block(models.Model):
     url = models.CharField(_('URL'), max_length=200, help_text=_('Page URL this block is related to. Regular expressions supported (e.g.: "/news.*" &#8212; everything under "/news").<br />View names are supported: prepend <b>:</b> to view name <br /><b>Reserved URL alias:</b> "*" &#8212; every page.'))
     contents = models.TextField(_('Contents'), help_text=_('Block contents to render in a template.'))
     hidden = models.BooleanField(_('Hidden'), help_text=_('Whether to show this block when requested.'), db_index=True, default=False)
-      
+
     class Meta:
         verbose_name = _('Site Block')
         verbose_name_plural = _('Site Blocks')
-        
+
     def __str__(self):
         return self.alias
