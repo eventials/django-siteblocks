@@ -92,6 +92,9 @@ class TreeItemModelTest(unittest.TestCase):
         cls.b10 = Block(alias='template_error', url='/template-error', contents='{% ifz %}')
         cls.b10.save(force_insert=True)
 
+        cls.b11 = Block(alias='multiple', url='/root/', contents='root')
+        cls.b11.save(force_insert=True)
+
         # set urlconf to one from test
         cls.old_urlconf = urlresolvers.get_urlconf()
         urlresolvers.set_urlconf('siteblocks.tests')
@@ -111,7 +114,7 @@ class TreeItemModelTest(unittest.TestCase):
         self.assertEqual(contents, self.b1.contents)
 
         contents = self.siteblocks.get(self.b3.alias, get_mock_context(path='/root/'))
-        self.assertEqual(contents, self.b4.contents)
+        self.assertEqual(contents, self.b11.contents)
 
     def test_static_multiple(self):
 

@@ -118,7 +118,7 @@ class SiteBlocks(object):
         siteblocks_static = self._cache_get(key)
         if not siteblocks_static:
             blocks = Block.objects.filter(alias=block_alias, hidden=False).only('url', 'contents')
-            re_index = {}
+            re_index = defaultdict(list)
             for block in blocks:
                 if block.url == '*':
                     url_re = block.url
@@ -136,24 +136,23 @@ class SiteBlocks(object):
                     logging.exception("Error rendering siteblock template.")
                     contents = ""
 
-                re_index[url_re] = contents
+                re_index[url_re].append(contents)
 
             siteblocks_static = re_index
             self._cache_set(key, re_index)
         self._cache_save()
 
-        static_block_contents = ''
-        if '*' in siteblocks_static:
-            static_block_contents = siteblocks_static['*']
-        elif resolved_view_name in siteblocks_static:
-            static_block_contents = siteblocks_static[resolved_view_name]
+        if resolved_view_name in siteblocks_static:
+            return choice(siteblocks_static[resolved_view_name])
         else:
             for url, contents in siteblocks_static.items():
                 if hasattr(url, 'match') and url.match(current_url):
-                    static_block_contents = contents
-                    break
+                    return choice(contents)
 
-        return static_block_contents
+        if '*' in siteblocks_static:
+            return choice(siteblocks_static['*'])
+
+        return ''
 
     def get_contents_dynamic(self, block_alias, context):
         dynamic_block = get_dynamic_blocks().get(block_alias, [])
