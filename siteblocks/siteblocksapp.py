@@ -93,6 +93,12 @@ class SiteBlocks(object):
         self._cache = None
         cache.delete(CACHE_KEY)
 
+    def get_block_cache_key(self, alias, url, context):
+        user = context['request'].user
+        uid = user.id if user.is_authenticated() else ''
+
+        return alias + url + uid
+
     def get_contents_static(self, block_alias, context):
 
         if 'request' not in context:
@@ -113,7 +119,7 @@ class SiteBlocks(object):
             resolved_view_name = None
 
         self._cache_init()
-        key = block_alias + current_url
+        key = self.get_block_cache_key(block_alias, current_url, context)
 
         siteblocks_static = self._cache_get(key)
         if not siteblocks_static:
