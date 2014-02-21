@@ -95,7 +95,7 @@ class SiteBlocks(object):
 
     def get_block_cache_key(self, alias, url, context):
         user = context['request'].user
-        uid = user.id if user.is_authenticated() else ''
+        uid = str(user.id) if user.is_authenticated() else ''
 
         return alias + url + uid
 
