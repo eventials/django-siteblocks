@@ -107,12 +107,6 @@ class SiteBlocks(object):
         self._cache_set(key, value)
         return value
 
-    def _get_block_cache_key(self, alias, url, context):
-        user = context['request'].user
-        uid = str(user.id) if user.is_authenticated() else ''
-
-        return alias + uid
-
     def _get_resolved_view_name(self, current_url):
         # Resolve current view name to support view names as block URLs.
         try:
@@ -138,12 +132,10 @@ class SiteBlocks(object):
             return ''
 
         current_url = context['request'].path
-        key = self._get_block_cache_key(block_alias, current_url, context)
 
-        cached_content = self._cache_get(key)
-        if cached_content:
-            return cached_content
-        else:
+        key = block_alias
+        re_index = self._cache_get(key)
+        if not re_index:
             blocks = Block.objects.filter(alias=block_alias, hidden=False).only('url', 'contents')
             re_index = defaultdict(list)
             for block in blocks:
@@ -158,23 +150,24 @@ class SiteBlocks(object):
                     url_re = re.compile(r'%s' % block.url)
 
                 re_index[url_re].append(block.contents)
+            self._cache_set(key, re_index)
 
-            resolved_view_name = self._get_resolved_view_name(current_url)
+        resolved_view_name = self._get_resolved_view_name(current_url)
 
-            if resolved_view_name in re_index:
-                contents = choice(re_index[resolved_view_name])
-                return render_template(contents)
-            else:
-                for url, contents_list in re_index.items():
-                    if hasattr(url, 'match') and url.match(current_url):
-                        contents = choice(contents_list)
-                        return render_template(contents)
+        if resolved_view_name in re_index:
+            contents = choice(re_index[resolved_view_name])
+            return render_template(contents)
+        else:
+            for url, contents_list in re_index.items():
+                if hasattr(url, 'match') and url.match(current_url):
+                    contents = choice(contents_list)
+                    return render_template(contents)
 
-            if '*' in re_index:
-                contents = choice(re_index['*'])
-                return self._cache_and_return(key, render_template(contents))
+        if '*' in re_index:
+            contents = choice(re_index['*'])
+            return render_template(contents)
 
-            return self._cache_and_return(key, '')
+        return ''
 
     def get_content_dynamic(self, block_alias, context):
         dynamic_block = get_dynamic_blocks().get(block_alias, [])
