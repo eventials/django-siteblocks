@@ -14,7 +14,8 @@ from .models import Block
 # siteblocks objects are stored in Django cache for a year (60 * 60 * 24 * 365 = 31536000 sec).
 # Cache is only invalidated on block item change.
 CACHE_TIMEOUT = 31536000
-CACHE_KEY = 'siteblocks'
+CACHE_KEY_PREFIX = 'siteblocks'
+CACHE_LIST_KEYS_KEY = 'siteblocks_keys'
 
 # Holds dynamic blocks.
 _DYNAMIC_BLOCKS = defaultdict(list)
@@ -67,46 +68,52 @@ def get_dynamic_blocks():
 class SiteBlocks(object):
 
     def __init__(self):
-        self._cache = None
-        signals.post_save.connect(self._cache_empty, sender=Block)
-        signals.post_delete.connect(self._cache_empty, sender=Block)
+        signals.post_save.connect(self._cache_list_keys_empty, sender=Block)
+        signals.post_delete.connect(self._cache_list_keys_empty, sender=Block)
 
-    def _cache_init(self):
+    def _cache_list_keys_init(self):
         """Initializes local cache from Django cache."""
-        cache_ = cache.get(CACHE_KEY)
+        cache_ = cache.get(CACHE_LIST_KEYS_KEY)
         if cache_ is None:
-            cache_ = defaultdict(dict)
+            cache_ = defaultdict(list)
         self._cache = cache_
 
-    def _cache_save(self):
-        cache.set(CACHE_KEY, self._cache, CACHE_TIMEOUT)
+    def _cache_list_keys_save(self):
+        cache.set(CACHE_LIST_KEYS_KEY, self._cache, CACHE_TIMEOUT)
+
+    def _save_key(self, key):
+        self._cache_list_keys_init()
+        self._cache['keys'].append(key)
+        self._cache_list_keys_save()
+
+    def _cache_list_keys_empty(self, **kwargs):
+        self._cache_list_keys_init()
+        for key in self._cache['keys']:
+            cache.delete(key)
+
+        self._cache = None
+        cache.delete(CACHE_LIST_KEYS_KEY)
 
     def _cache_get(self, key):
-        """Returns cache entry parameter value by its name."""
-        return self._cache.get(key, False)
+        key = '%s_%s' % (CACHE_KEY_PREFIX, key)
+        self._save_key(key)
+        return cache.get(key, False)
 
     def _cache_set(self, key, value):
-        """Replaces entire cache entry parameter data by its name with new data."""
-        self._cache[key] = value
+        key = '%s_%s' % (CACHE_KEY_PREFIX, key)
+        cache.set(key, value, CACHE_TIMEOUT)
 
-    def _cache_empty(self, **kwargs):
-        self._cache = None
-        cache.delete(CACHE_KEY)
+    def _cache_and_return(self, key, value):
+        self._cache_set(key, value)
+        return value
 
-    def get_block_cache_key(self, alias, url, context):
+    def _get_block_cache_key(self, alias, url, context):
         user = context['request'].user
         uid = str(user.id) if user.is_authenticated() else ''
 
-        return alias + url + uid
+        return alias + uid
 
-    def get_contents_static(self, block_alias, context):
-
-        if 'request' not in context:
-            # No use in further actions as we won't ever know current URL.
-            return ''
-
-        current_url = context['request'].path
-
+    def _get_resolved_view_name(self, current_url):
         # Resolve current view name to support view names as block URLs.
         try:
             resolver_match = resolve(current_url)
@@ -114,15 +121,29 @@ class SiteBlocks(object):
             if resolver_match.namespaces:
                 # More than one namespace, really? Hmm.
                 namespace = resolver_match.namespaces[0]
-            resolved_view_name = ':%s:%s' % (namespace, resolver_match.url_name)
+            return ':%s:%s' % (namespace, resolver_match.url_name)
         except Resolver404:
-            resolved_view_name = None
+            return None
 
-        self._cache_init()
-        key = self.get_block_cache_key(block_alias, current_url, context)
+    def get_content_static(self, block_alias, context):
+        def render_template(contents):
+            try:
+                return Template(contents).render(Context(context))
+            except:
+                logging.exception("Error rendering siteblock template.")
+                return ""
 
-        siteblocks_static = self._cache_get(key)
-        if not siteblocks_static:
+        if 'request' not in context:
+            # No use in further actions as we won't ever know current URL.
+            return ''
+
+        current_url = context['request'].path
+        key = self._get_block_cache_key(block_alias, current_url, context)
+
+        cached_content = self._cache_get(key)
+        if cached_content:
+            return cached_content
+        else:
             blocks = Block.objects.filter(alias=block_alias, hidden=False).only('url', 'contents')
             re_index = defaultdict(list)
             for block in blocks:
@@ -136,31 +157,26 @@ class SiteBlocks(object):
                 else:
                     url_re = re.compile(r'%s' % block.url)
 
-                try:
-                    contents = Template(block.contents).render(Context(context))
-                except:
-                    logging.exception("Error rendering siteblock template.")
-                    contents = ""
+                re_index[url_re].append(block.contents)
 
-                re_index[url_re].append(contents)
+            resolved_view_name = self._get_resolved_view_name(current_url)
 
-            siteblocks_static = re_index
-            self._cache_set(key, re_index)
-        self._cache_save()
+            if resolved_view_name in re_index:
+                contents = choice(re_index[resolved_view_name])
+                return render_template(contents)
+            else:
+                for url, contents_list in re_index.items():
+                    if hasattr(url, 'match') and url.match(current_url):
+                        contents = choice(contents_list)
+                        return render_template(contents)
 
-        if resolved_view_name in siteblocks_static:
-            return choice(siteblocks_static[resolved_view_name])
-        else:
-            for url, contents in siteblocks_static.items():
-                if hasattr(url, 'match') and url.match(current_url):
-                    return choice(contents)
+            if '*' in re_index:
+                contents = choice(re_index['*'])
+                return self._cache_and_return(key, render_template(contents))
 
-        if '*' in siteblocks_static:
-            return choice(siteblocks_static['*'])
+            return self._cache_and_return(key, '')
 
-        return ''
-
-    def get_contents_dynamic(self, block_alias, context):
+    def get_content_dynamic(self, block_alias, context):
         dynamic_block = get_dynamic_blocks().get(block_alias, [])
         if not dynamic_block:
             return ''
@@ -171,11 +187,11 @@ class SiteBlocks(object):
     def get(self, block_alias, context):
         contents = []
 
-        dynamic_block_contents = self.get_contents_dynamic(block_alias, context)
+        dynamic_block_contents = self.get_content_dynamic(block_alias, context)
         if dynamic_block_contents:
             contents.append(dynamic_block_contents)
 
-        static_block_contents = self.get_contents_static(block_alias, context)
+        static_block_contents = self.get_content_static(block_alias, context)
         if static_block_contents:
             contents.append(static_block_contents)
 
