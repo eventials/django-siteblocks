@@ -135,8 +135,7 @@ class SiteBlocks(object):
 
         key = block_alias
         re_index = self._cache_get(key)
-        print re_index
-        if True:
+        if not re_index:
             blocks = Block.objects.filter(alias=block_alias, hidden=False).only('url', 'contents')
             re_index = defaultdict(list)
             for block in blocks:
