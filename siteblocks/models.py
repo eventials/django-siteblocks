@@ -2,6 +2,9 @@ from django.db import models
 from django.utils.translation import ugettext_lazy as _
 from django.utils.encoding import python_2_unicode_compatible
 
+from django.template import Context, Template
+
+
 # TODO Fix texts.
 
 @python_2_unicode_compatible
@@ -19,3 +22,27 @@ class Block(models.Model):
 
     def __str__(self):
         return self.alias
+
+
+@python_2_unicode_compatible
+class EventSiteBlock(models.Model):
+
+    event = models.CharField(_('Event'), max_length=80, db_index=True)
+    template = models.TextField(_('Template'), help_text=_('Block contents to render in a template.'))
+    hidden = models.BooleanField(_('Hidden'), help_text=_('Whether to show this block when requested.'), db_index=True, default=False)
+
+    class Meta:
+        verbose_name = _('Event Site Block')
+        verbose_name_plural = _('Event Site Blocks')
+
+    def __str__(self):
+        return self.event
+
+    def render_template(self, obj=None):
+        try:
+            return Template(self.template).render(Context({
+                'object': obj
+            }))
+        except:
+            logging.exception("Error rendering EventSiteBlock template.")
+            return ""

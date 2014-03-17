@@ -5,8 +5,9 @@ from django.utils import unittest
 from django import template
 from django.core import urlresolvers
 
-from siteblocks.models import Block
+from siteblocks.models import Block, EventSiteBlock
 from siteblocks.siteblocksapp import SiteBlocks, register_dynamic_block
+from siteblocks.event import track_event
 
 from django.conf.urls import patterns, url, include
 
@@ -19,6 +20,7 @@ class MockRequest(object):
 class MockUser(object):
     def __init__(self, authorized):
         self.authorized = authorized
+        self.id = int(authorized)
 
     def is_authenticated(self):
         return self.authorized
@@ -95,6 +97,9 @@ class TreeItemModelTest(unittest.TestCase):
         cls.b11 = Block(alias='multiple', url='/root/', contents='root')
         cls.b11.save(force_insert=True)
 
+        cls.esb1 = EventSiteBlock(event='signup', template='hello {{ object.value }}')
+        cls.esb1.save(force_insert=True)
+
         # set urlconf to one from test
         cls.old_urlconf = urlresolvers.get_urlconf()
         urlresolvers.set_urlconf('siteblocks.tests')
@@ -156,6 +161,24 @@ class TreeItemModelTest(unittest.TestCase):
 
         contents = self.siteblocks.get(self.b8.alias, get_mock_context(path='/namespace/my_another_named_url/'))
         self.assertEqual(contents, self.b8.contents)
+
+    def test_event_site_block(self):
+        from django.core.cache import cache
+        from event import CACHE_KEY
+
+        track_event(1, 'signup', {'value': 1})
+        self.assertEqual(cache.get(CACHE_KEY % 1), 'hello 1')
+
+    def test_event_site_block_tag(self):
+        from django.core.cache import cache
+        from templatetags.siteblocks import event_siteblock
+
+        track_event(1, 'signup', {'value': 1})
+        content = event_siteblock(get_mock_context(path='/namespace', user_authorized=True))
+        self.assertEqual(content, 'hello 1')
+
+        content = event_siteblock(get_mock_context(path='/namespace', user_authorized=True))
+        self.assertEqual(content, '')
 
     def test_dynamic(self):
         register_dynamic_block('quotes', get_quote)

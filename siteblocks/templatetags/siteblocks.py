@@ -1,6 +1,10 @@
+import logging
+
 from django import template
+from django.core.cache import cache
 
 from ..siteblocksapp import SiteBlocks
+from ..event import CACHE_KEY
 
 register = template.Library()
 
@@ -15,11 +19,11 @@ def siteblock(parser, token):
         1. Two arguments:
            {% siteblock "myblock" %}
            Used to render "myblock" site block.
-           
+
         2. Four arguments:
            {% siteblock "myblock" as myvar %}
            Used to put "myblock" site block into "myvar" template variable.
-           
+
     """
     tokens = token.split_contents()
     tokens_num = len(tokens)
@@ -41,7 +45,7 @@ class siteblockNode(template.Node):
     def __init__(self, block_alias, as_var=None):
         self.block_alias = block_alias
         self.as_var = as_var
-        
+
     def render(self, context):
         block_alias = self.block_alias
         if isinstance(self.block_alias, template.FilterExpression):
@@ -54,3 +58,22 @@ class siteblockNode(template.Node):
             return ''
 
         return contents
+
+
+@register.simple_tag(takes_context=True)
+def event_siteblock(context, **kwargs):
+    request = context['request']
+    user = request.user
+
+    if user.is_authenticated():
+        try:
+            key = CACHE_KEY % user.id
+            content = cache.get(key)
+            if content:
+                cache.delete(key)
+                return content
+        except:
+            # No matter what exception, we won't break because of this.
+            logging.exception("Error rendering siteblock template.")
+
+    return ''
