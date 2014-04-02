@@ -88,7 +88,8 @@ class TreeItemModelTest(unittest.TestCase):
         cls.b8 = Block(alias='named_2', url=':namespaced:url', contents='named_2_1')
         cls.b8.save(force_insert=True)
 
-        cls.b9 = Block(alias='template', url='/template', contents='{{ something|default:"other" }}')
+        cls.b9 = Block(alias='template', url='/template', contents=
+            '{% if request.user.is_authenticated %}logged in{% else %}anonymous{% endif %}')
         cls.b9.save(force_insert=True)
 
         cls.b10 = Block(alias='template_error', url='/template-error', contents='{% ifz %}')
@@ -144,9 +145,11 @@ class TreeItemModelTest(unittest.TestCase):
         self.assertEqual(contents, '')
 
     def test_static_template(self):
-
         contents = self.siteblocks.get(self.b9.alias, get_mock_context(path='/template'))
-        self.assertEqual(contents, 'other')
+        self.assertEqual(contents, 'anonymous')
+
+        contents = self.siteblocks.get(self.b9.alias, get_mock_context(path='/template', user_authorized=True))
+        self.assertEqual(contents, 'logged in')
 
     def test_static_template_error(self):
 
@@ -170,7 +173,6 @@ class TreeItemModelTest(unittest.TestCase):
         self.assertEqual(cache.get(CACHE_KEY % 1), 'hello 1')
 
     def test_event_site_block_tag(self):
-        from django.core.cache import cache
         from templatetags.siteblocks import event_siteblock
 
         track_event(1, 'signup', {'value': 1})

@@ -5,7 +5,6 @@ from collections import defaultdict
 
 from django.core.cache import cache
 from django.core.urlresolvers import resolve, Resolver404
-from django.db.models import signals
 from django.template import Context, Template
 
 from .models import Block
@@ -19,6 +18,9 @@ CACHE_LIST_KEYS_KEY = 'siteblocks_keys'
 
 # Holds dynamic blocks.
 _DYNAMIC_BLOCKS = defaultdict(list)
+
+# hold the compiled templates for performance.
+compiled_templates = {}
 
 
 def register_dynamic_block(alias, callable):
@@ -66,10 +68,6 @@ def get_dynamic_blocks():
 
 
 class SiteBlocks(object):
-
-    def __init__(self):
-        signals.post_save.connect(self._cache_list_keys_empty, sender=Block)
-        signals.post_delete.connect(self._cache_list_keys_empty, sender=Block)
 
     def _cache_list_keys_init(self):
         """Initializes local cache from Django cache."""
@@ -121,8 +119,19 @@ class SiteBlocks(object):
 
     def get_content_static(self, block_alias, context):
         def render_template(contents):
+            global compiled_templates
+
             try:
-                return Template(contents).render(Context(context))
+                template = compiled_templates.get(contents)
+                if template:
+                    return template.render(Context(context))
+
+                # compile the template and cache it.
+                template = Template(contents)
+                compiled_templates[contents] = template
+
+                # return the rendered template.
+                return template.render(Context(context))
             except:
                 logging.exception("Error rendering siteblock template.")
                 return ""
