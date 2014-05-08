@@ -1,13 +1,7 @@
-import logging
-logger = logging.getLogger(__name__)  # Get an instance of a logger
-
 from django.db.models import signals
 
 from .models import Block
 from .siteblocksapp import SiteBlocks
-
-
-logger.info('Registering SiteBlocks signals')
 
 siteblocks = SiteBlocks()
 

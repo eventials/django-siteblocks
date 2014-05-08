@@ -166,15 +166,16 @@ class SiteBlocks(object):
         if resolved_view_name in re_index:
             contents = choice(re_index[resolved_view_name])
             return render_template(contents)
-        else:
-            for url, contents_list in re_index.items():
-                if hasattr(url, 'match') and url.match(current_url):
-                    contents = choice(contents_list)
-                    return render_template(contents)
+        # GERMANO - commented out to optimize performance.
+        # else:
+        #     for url, contents_list in re_index.items():
+        #         if hasattr(url, 'match') and url.match(current_url):
+        #             contents = choice(contents_list)
+        #             return render_template(contents)
 
-        if '*' in re_index:
-            contents = choice(re_index['*'])
-            return render_template(contents)
+        # if '*' in re_index:
+        #     contents = choice(re_index['*'])
+        #     return render_template(contents)
 
         return ''
 
