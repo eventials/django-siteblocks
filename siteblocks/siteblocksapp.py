@@ -81,8 +81,9 @@ class SiteBlocks(object):
 
     def _save_key(self, key):
         self._cache_list_keys_init()
-        self._cache['keys'].append(key)
-        self._cache_list_keys_save()
+        if key not in self._cache['keys']:
+            self._cache['keys'].append(key)
+            self._cache_list_keys_save()
 
     def _cache_list_keys_empty(self, **kwargs):
         self._cache_list_keys_init()
